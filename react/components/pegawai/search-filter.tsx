@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { departemenList, statusList } from "@/lib/mock-data"
 
 interface SearchFilterProps {
   searchQuery: string
@@ -19,6 +18,8 @@ interface SearchFilterProps {
   onDepartemenChange: (value: string) => void
   status: string
   onStatusChange: (value: string) => void
+  departemenOptions: string[]
+  statusOptions: string[]
   onReset: () => void
 }
 
@@ -29,6 +30,8 @@ export function SearchFilter({
   onDepartemenChange,
   status,
   onStatusChange,
+  departemenOptions,
+  statusOptions,
   onReset,
 }: SearchFilterProps) {
   const hasFilters =
@@ -56,10 +59,10 @@ export function SearchFilter({
 
         <Select value={departemen} onValueChange={onDepartemenChange}>
           <SelectTrigger className="w-full bg-secondary text-sm sm:w-40 lg:w-44">
-            <SelectValue placeholder="Departemen" />
+            <SelectValue placeholder="Jenis Pegawai" />
           </SelectTrigger>
           <SelectContent>
-            {departemenList.map((dept) => (
+            {departemenOptions.map((dept) => (
               <SelectItem key={dept} value={dept}>
                 {dept}
               </SelectItem>
@@ -72,7 +75,7 @@ export function SearchFilter({
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            {statusList.map((s) => (
+            {statusOptions.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
               </SelectItem>

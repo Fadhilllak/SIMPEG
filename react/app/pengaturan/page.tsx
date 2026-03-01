@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,10 @@ import { cn } from "@/lib/utils"
 export default function PengaturanPage() {
   const [activeTab, setActiveTab] = useState<"profil" | "keamanan">("profil")
   const { toast } = useToast()
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string>("")
   
   // State for Profile
   const [profileData, setProfileData] = useState({
@@ -22,6 +26,31 @@ export default function PengaturanPage() {
     telepon: "081234567890"
   })
 
+  useEffect(() => {
+    let mounted = true
+
+    fetch('/api/admin/profile')
+      .then((r) => r.json())
+      .then((json) => {
+        if (!mounted) return
+
+        setProfileData({
+          nama: json.nama ?? 'Admin',
+          email: json.email ?? 'admin@instansi.go.id',
+          telepon: json.telepon ?? '',
+        })
+
+        setPhotoPreview(json.foto ?? '')
+      })
+      .catch(() => {
+        // keep default state
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   // State for Password
   const [passwordData, setPasswordData] = useState({
     current: "",
@@ -29,15 +58,60 @@ export default function PengaturanPage() {
     confirm: ""
   })
 
-  const handleProfileSave = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast({
-      title: "Profil diperbarui",
-      description: "Informasi profil Anda berhasil disimpan.",
-    })
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setPhotoPreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingProfile(true)
+
+    const formData = new FormData()
+    formData.append('nama', profileData.nama)
+    formData.append('email', profileData.email)
+    formData.append('telepon', profileData.telepon)
+
+    if (photoFile) {
+      formData.append('foto', photoFile)
+    }
+
+    try {
+      const response = await fetch('/api/admin/profile', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Gagal menyimpan profil')
+      }
+
+      const json = await response.json()
+      setPhotoPreview(json.foto ?? photoPreview)
+      setPhotoFile(null)
+      window.dispatchEvent(new Event('admin-profile-updated'))
+
+      toast({
+        title: "Profil diperbarui",
+        description: "Informasi profil Anda berhasil disimpan.",
+      })
+    } catch {
+      toast({
+        title: "Gagal memperbarui profil",
+        description: "Silakan periksa data dan coba lagi.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (passwordData.new !== passwordData.confirm) {
       toast({
@@ -47,11 +121,39 @@ export default function PengaturanPage() {
       })
       return
     }
-    toast({
-      title: "Password diubah",
-      description: "Password Anda berhasil diperbarui. Silakan login ulang.",
-    })
-    setPasswordData({ current: "", new: "", confirm: "" })
+
+    setSavingPassword(true)
+    try {
+      const response = await fetch('/api/admin/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_password: passwordData.current,
+          new_password: passwordData.new,
+          new_password_confirmation: passwordData.confirm,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Gagal mengubah password')
+      }
+
+      toast({
+        title: "Password diubah",
+        description: "Password Anda berhasil diperbarui. Silakan login ulang.",
+      })
+      setPasswordData({ current: "", new: "", confirm: "" })
+    } catch {
+      toast({
+        title: "Gagal mengubah password",
+        description: "Pastikan password saat ini benar.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingPassword(false)
+    }
   }
 
   return (
@@ -93,11 +195,18 @@ export default function PengaturanPage() {
             <Card className="p-6 flex flex-col items-center text-center space-y-4 h-fit border-border transition-all duration-300 hover:scale-[1.01] hover:shadow-lg">
               <div className="relative group">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
-                  <AvatarImage src="" />
-                  <AvatarFallback className="text-4xl bg-primary text-primary-foreground">AD</AvatarFallback>
+                  <AvatarImage src={photoPreview || undefined} />
+                  <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
+                    {(profileData.nama || 'AD').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="absolute bottom-0 right-0">
-                  <Button size="icon" className="rounded-full h-8 w-8 shadow-md bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="rounded-full h-8 w-8 shadow-md bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                  >
                     <Camera className="h-4 w-4" />
                   </Button>
                 </div>
@@ -115,7 +224,13 @@ export default function PengaturanPage() {
                 <Upload className="mr-2 h-3 w-3" />
                 Unggah Foto
               </Button>
-              <input type="file" id="photo-upload" className="hidden" accept="image/png, image/jpeg" />
+              <input
+                type="file"
+                id="photo-upload"
+                className="hidden"
+                accept="image/png, image/jpeg"
+                onChange={handleFotoChange}
+              />
             </Card>
 
             {/* Right Column: Info Form */}
@@ -154,9 +269,9 @@ export default function PengaturanPage() {
                   />
                 </div>
                 <div className="pt-4 flex justify-end">
-                  <Button type="submit" className="gap-2 bg-primary text-primary-foreground">
+                  <Button type="submit" className="gap-2 bg-primary text-primary-foreground" disabled={savingProfile}>
                     <Save className="h-4 w-4" />
-                    Simpan Perubahan
+                    {savingProfile ? 'Menyimpan...' : 'Simpan Perubahan'}
                   </Button>
                 </div>
               </form>
@@ -212,9 +327,9 @@ export default function PengaturanPage() {
               </div>
               
               <div className="pt-4 flex justify-end">
-                <Button type="submit" className="gap-2 bg-primary text-primary-foreground">
+                <Button type="submit" className="gap-2 bg-primary text-primary-foreground" disabled={savingPassword}>
                   <Save className="h-4 w-4" />
-                  Ubah Password
+                  {savingPassword ? 'Menyimpan...' : 'Ubah Password'}
                 </Button>
               </div>
             </form>

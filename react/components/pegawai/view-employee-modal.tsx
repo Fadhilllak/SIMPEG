@@ -13,6 +13,7 @@ import {
   FileText,
   X,
   Briefcase,
+  Trash2,
   CreditCard,
   MapPin,
   IdCard,
@@ -233,6 +234,17 @@ export function ModalLihatPegawai({
                             <span>{formatDate(file.waktuUpload)}</span>
                           </div>
                         </div>
+                        {hapusDokumen && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => hapusDokumen(pegawai.nipPegawai, String(file.idFile))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>

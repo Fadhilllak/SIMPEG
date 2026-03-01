@@ -1,15 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { setAuth, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate("/");
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Redirect ke dashboard utama
-    navigate("/");
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Login gagal');
+      }
+
+      const json = await response.json();
+      setAuth({ token: json.token, user: json.user });
+      navigate("/");
+    } catch {
+      setError("Username atau password salah.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,9 +68,15 @@ export default function LoginPage() {
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              {error && (
+                <div className="rounded-md border border-red-400/50 bg-red-500/20 p-2 text-xs text-red-100">
+                  {error}
+                </div>
+              )}
+
               <div>
                 <label htmlFor="username" className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-medium text-white">
-                  Username
+                  Username / Email
                 </label>
                 <input
                   type="text"
@@ -66,9 +106,10 @@ export default function LoginPage() {
 
               <button
                 type="submit"
+                disabled={loading}
                 className="w-full rounded-md bg-primary py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-primary-foreground hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-opacity"
               >
-                Login
+                {loading ? "Memproses..." : "Login"}
               </button>
             </form>
 

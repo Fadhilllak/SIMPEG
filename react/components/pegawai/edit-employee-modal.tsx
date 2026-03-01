@@ -1,6 +1,6 @@
 "use client"
 
-import type { FormEvent } from "react"
+import type { ChangeEvent, FormEvent } from "react"
 import { useState, useEffect } from "react"
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Camera } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { Pegawai } from "@/lib/types"
 import { departemenList, statusList, golonganList } from "@/lib/mock-data"
@@ -30,7 +31,7 @@ interface EditEmployeeModalProps {
   pegawai: Pegawai | null
   isOpen: boolean
   onClose: () => void
-  onSave: (pegawai: Pegawai) => void
+  onSave: (pegawai: Pegawai, fotoFile?: File | null) => Promise<void> | void
 }
 
 export function EditEmployeeModal({
@@ -40,22 +41,47 @@ export function EditEmployeeModal({
   onSave,
 }: EditEmployeeModalProps) {
   const [formData, setFormData] = useState<Partial<Pegawai>>({})
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | undefined>(undefined)
   const { toast } = useToast()
 
   useEffect(() => {
     if (pegawai) {
       setFormData(pegawai)
+      setFotoPreview(pegawai.foto)
+      setFotoFile(null)
     }
   }, [pegawai])
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleFotoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setFotoFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      setFotoPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (formData && pegawai) {
-      onSave({ ...pegawai, ...formData } as Pegawai)
-      toast({
-        title: "Data berhasil disimpan",
-        description: `Data pegawai ${formData.nama} telah diperbarui.`,
-      })
+      try {
+        await onSave({ ...pegawai, ...formData } as Pegawai, fotoFile)
+        toast({
+          title: "Data berhasil disimpan",
+          description: `Data pegawai ${formData.nama} telah diperbarui.`,
+        })
+      } catch {
+        toast({
+          title: "Gagal menyimpan data",
+          description: "Terjadi kesalahan saat menyimpan perubahan.",
+          variant: "destructive",
+        })
+        return
+      }
     }
     onClose()
   }
@@ -71,6 +97,26 @@ export function EditEmployeeModal({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center gap-4 rounded-lg border border-border bg-secondary/20 p-3">
+            <div className="relative h-20 w-20 overflow-hidden rounded-full border border-border bg-secondary">
+              {fotoPreview ? (
+                <img src={fotoPreview} alt="Foto Pegawai" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">Foto</div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="foto" className="text-sm text-foreground">Foto Profil</Label>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('foto-edit')?.click()}>
+                  <Camera className="mr-2 h-4 w-4" />
+                  Ganti Foto
+                </Button>
+                <input id="foto-edit" type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+              </div>
+            </div>
+          </div>
+
           {/* Identitas Section */}
           <h3 className="text-base font-semibold text-foreground border-b border-border pb-2">Identitas Pegawai</h3>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">

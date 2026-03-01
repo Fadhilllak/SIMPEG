@@ -2,7 +2,7 @@
 
 import { Menu, LogOut, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { clearAuth } from "@/lib/auth"
 
 interface TopbarProps {
   title: string
@@ -32,11 +33,38 @@ export function Topbar({ title, onMobileMenuToggle }: TopbarProps) {
   const [isDark, setIsDark] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
+  const [adminProfile, setAdminProfile] = useState({
+    nama: 'Admin',
+    email: '',
+    foto: '',
+  })
 
   useEffect(() => {
     // Check if dark mode is enabled
     const isDarkMode = document.documentElement.classList.contains('dark')
     setIsDark(isDarkMode)
+
+    const loadProfile = () => {
+      fetch('/api/admin/profile')
+        .then((r) => r.json())
+        .then((json) => {
+          setAdminProfile({
+            nama: json.nama ?? 'Admin',
+            email: json.email ?? '',
+            foto: json.foto ?? '',
+          })
+        })
+        .catch(() => {
+          // keep defaults
+        })
+    }
+
+    loadProfile()
+    window.addEventListener('admin-profile-updated', loadProfile)
+
+    return () => {
+      window.removeEventListener('admin-profile-updated', loadProfile)
+    }
   }, [])
 
   const toggleDarkMode = () => {
@@ -52,9 +80,14 @@ export function Topbar({ title, onMobileMenuToggle }: TopbarProps) {
     }
   }
 
-  const handleLogout = () => {
-    // Redirect to login page
-    navigate('/login')
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+    } finally {
+      clearAuth()
+      navigate('/login')
+    }
   }
 
   return (
@@ -105,7 +138,10 @@ export function Topbar({ title, onMobileMenuToggle }: TopbarProps) {
           title="Profil"
         >
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">AD</AvatarFallback>
+            <AvatarImage src={adminProfile.foto || undefined} />
+            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+              {(adminProfile.nama || 'AD').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
         </Button>
 
@@ -154,10 +190,13 @@ export function Topbar({ title, onMobileMenuToggle }: TopbarProps) {
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 px-6 pb-4">
             <Avatar className="h-28 w-28">
-              <AvatarFallback className="bg-primary text-xl font-semibold text-primary-foreground">AD</AvatarFallback>
+              <AvatarImage src={adminProfile.foto || undefined} />
+              <AvatarFallback className="bg-primary text-xl font-semibold text-primary-foreground">
+                {(adminProfile.nama || 'AD').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+              </AvatarFallback>
             </Avatar>
-            <p className="text-base font-semibold text-foreground">Admin</p>
-            <p className="text-sm text-muted-foreground">Kaltim</p>
+            <p className="text-base font-semibold text-foreground">{adminProfile.nama || 'Admin'}</p>
+            <p className="text-sm text-muted-foreground">{adminProfile.email || 'admin@instansi.go.id'}</p>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowProfileDialog(false)} className="mx-auto">Tutup</Button>

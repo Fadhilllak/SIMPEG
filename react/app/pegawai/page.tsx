@@ -22,6 +22,9 @@ import type { Pegawai, Dokumen } from "@/lib/types"
 
 export default function PegawaiPage() {
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([])
+  const [departemenOptions, setDepartemenOptions] = useState<string[]>(["Semua"])
+  const [statusOptions, setStatusOptions] = useState<string[]>(["Semua"])
+  const [reloadKey, setReloadKey] = useState(0)
   const [page, setPage] = useState(1)
   const [perPage] = useState(10)
   const [lastPage, setLastPage] = useState(1)
@@ -65,37 +68,76 @@ export default function PegawaiPage() {
         .then((r) => r.json())
         .then((json) => {
           const items = json.data ?? json
-          const mapped: Pegawai[] = (items || []).map((p: any) => ({
-            nipPegawai: p.nipPegawai,
-            nama: p.nama,
-            gelarDepan: p.gelarDepan ?? undefined,
-            gelarBelakang: p.gelarBelakang ?? undefined,
-            jabatan: p.jabatan ?? undefined,
-            departemen: p.departemen ?? undefined,
-            golongan: p.golongan ?? undefined,
-            status: p.status ?? 'Aktif',
-            tanggalMasuk: p.tanggalMasuk ?? undefined,
-            email: p.email ?? undefined,
-            noHp: p.noHp ?? '',
-            foto: p.foto ?? undefined,
-            tempatLahir: p.tempatLahir ?? '',
-            tanggalLahir: p.tanggalLahir ?? '',
-            jenisKelamin: p.jenisKelamin ?? '',
-            agama: p.agama ?? undefined,
-            alamat: p.alamat ?? undefined,
-            identitasResmi: p.identitasResmi ? {
-              nik: p.identitasResmi.nik ?? undefined,
-              noBpjs: p.identitasResmi.noBpjs ?? undefined,
-              noNpwp: p.identitasResmi.noNpwp ?? undefined,
-            } : undefined,
-            efiles: p.efiles ?? [],
-            kepegawaian: p.kepegawaian,
-            riwayatPangkat: p.riwayatPangkat,
-          }))
+          const mapped: Pegawai[] = (items || []).map((p: any) => {
+            const riwayatTerbaru = [...(p.riwayatPangkat ?? [])]
+              .sort((a: any, b: any) => {
+                const da = new Date(a?.tmtPangkat ?? 0).getTime()
+                const db = new Date(b?.tmtPangkat ?? 0).getTime()
+                return db - da
+              })[0]
+
+            const pangkatTerbaru = riwayatTerbaru?.pangkat
+            const golongan = pangkatTerbaru
+              ? `${pangkatTerbaru.pangkat ?? ""} (${pangkatTerbaru.golongan ?? ""})`.trim()
+              : (p.golongan ?? undefined)
+
+            const statusPegawai = p.kepegawaian?.statusPegawai ?? p.status ?? 'Aktif'
+            const jenisPegawai = p.kepegawaian?.jenisPegawai ?? p.departemen ?? '-'
+
+            return {
+              nipPegawai: p.nipPegawai,
+              nama: p.nama,
+              gelarDepan: p.gelarDepan ?? undefined,
+              gelarBelakang: p.gelarBelakang ?? undefined,
+              jabatan: p.jabatan ?? undefined,
+              departemen: jenisPegawai,
+              golongan,
+              status: statusPegawai,
+              tanggalMasuk: p.tanggalMasuk ?? p.kepegawaian?.tmtCpns ?? p.kepegawaian?.tmtPns ?? undefined,
+              email: p.email ?? undefined,
+              noHp: p.noHp ?? '',
+              foto: p.foto
+                ? `${p.foto}${String(p.foto).includes('?') ? '&' : '?'}v=${reloadKey}`
+                : undefined,
+              tempatLahir: p.tempatLahir ?? '',
+              tanggalLahir: p.tanggalLahir ?? '',
+              jenisKelamin: p.jenisKelamin ?? '',
+              agama: p.agama ?? undefined,
+              alamat: p.alamat ?? undefined,
+              identitasResmi: p.identitasResmi
+                ? {
+                    nipIdResmi: p.identitasResmi.nipIdResmi ?? p.nipPegawai,
+                    nik: p.identitasResmi.nik ?? undefined,
+                    noBpjs: p.identitasResmi.noBpjs ?? undefined,
+                    noNpwp: p.identitasResmi.noNpwp ?? undefined,
+                    karpeg: p.identitasResmi.karpeg ?? undefined,
+                    karsuKarsi: p.identitasResmi.karsuKarsi ?? undefined,
+                    taspen: p.identitasResmi.taspen ?? undefined,
+                  }
+                : undefined,
+              efiles: p.efiles ?? [],
+              kepegawaian: p.kepegawaian,
+              riwayatPangkat: (p.riwayatPangkat ?? []).map((r: any) => ({
+                ...r,
+                status: typeof r.status === 'boolean' ? (r.status ? 'Berlaku' : 'Selesai') : r.status,
+                pangkat: r.pangkat
+                  ? {
+                      idPangkat: r.pangkat.idPangkat,
+                      namaPangkat: `${r.pangkat.pangkat ?? ''} (${r.pangkat.golongan ?? ''})`.trim(),
+                    }
+                  : undefined,
+              })),
+            }
+          })
+
+          const departemenFromApi: string[] = json?.filter_options?.departemen ?? []
+          const statusFromApi: string[] = json?.filter_options?.status ?? []
 
           if (mounted) {
             setPegawaiList(mapped)
             setLastPage(json.last_page ?? 1)
+            setDepartemenOptions(['Semua', ...departemenFromApi])
+            setStatusOptions(['Semua', ...statusFromApi])
           }
         })
         .catch(() => {})
@@ -115,7 +157,7 @@ export default function PegawaiPage() {
       mounted = false
       if (t) clearTimeout(t)
     }
-  }, [page, perPage, searchQuery, departemen, status])
+  }, [page, perPage, searchQuery, departemen, status, reloadKey])
 
     const [deleteDialog, setDeleteDialog] = useState<{
       isOpen: boolean
@@ -141,18 +183,85 @@ export default function PegawaiPage() {
     aturModalLihat({ terbuka: true, pegawai })
   }
 
-  const handleSaveEdit = (updatedPegawai: Pegawai) => {
-    setPegawaiList((prev) =>
-      prev.map((p) => (p.nipPegawai === updatedPegawai.nipPegawai ? updatedPegawai : p))
-    )
+  const handleSaveEdit = async (updatedPegawai: Pegawai, fotoFile?: File | null) => {
+    const formData = new FormData()
+
+    const putField = (key: string, value: unknown) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value))
+      }
+    }
+
+    putField('nama', updatedPegawai.nama)
+    putField('gelarDepan', updatedPegawai.gelarDepan)
+    putField('gelarBelakang', updatedPegawai.gelarBelakang)
+    putField('tempatLahir', updatedPegawai.tempatLahir)
+    putField('tanggalLahir', updatedPegawai.tanggalLahir)
+    putField('jenisKelamin', updatedPegawai.jenisKelamin)
+    putField('agama', updatedPegawai.agama)
+    putField('alamat', updatedPegawai.alamat)
+    putField('email', updatedPegawai.email)
+    putField('noHp', updatedPegawai.noHp)
+    putField('jabatan', updatedPegawai.jabatan)
+    putField('golongan', updatedPegawai.golongan)
+    putField('status', updatedPegawai.status)
+    putField('departemen', updatedPegawai.departemen)
+    putField('tanggalMasuk', updatedPegawai.tanggalMasuk)
+
+    if (fotoFile) {
+      formData.append('foto', fotoFile)
+    }
+
+    formData.append('_method', 'PUT')
+
+    const response = await fetch(`/api/pegawai/${updatedPegawai.nipPegawai}`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error('Gagal menyimpan perubahan pegawai')
+    }
+
+    setReloadKey((v) => v + 1)
   }
 
-  const handleEditDocument = (pegawaiId: string, dokumenId: string, namaFile: string) => {
-    // Placeholder - to be implemented
+  const handleEditDocument = async (pegawaiId: string, dokumenId: string, namaFile: string) => {
+    const response = await fetch(`/api/documents/${dokumenId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ namaFile }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Gagal mengubah dokumen')
+    }
+
+    setReloadKey((v) => v + 1)
   }
 
-  const handleDeleteDocument = (pegawaiId: string, dokumenId: string) => {
-    // Placeholder - to be implemented
+  const handleDeleteDocument = async (pegawaiId: string, dokumenId: string) => {
+    const response = await fetch(`/api/documents/${dokumenId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      toast({
+        title: 'Gagal menghapus dokumen',
+        description: 'Terjadi kesalahan saat menghapus dokumen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    toast({
+      title: 'Dokumen dihapus',
+      description: 'Dokumen berhasil dihapus dari pegawai.',
+    })
+
+    setReloadKey((v) => v + 1)
   }
 
   const handleAddEmployee = (newPegawai: Pegawai, dokumen: Dokumen[]) => {
@@ -160,8 +269,24 @@ export default function PegawaiPage() {
     setAddModal(false)
   }
 
-  const handleAddDocument = (pegawaiId: string, newDocs: any[]) => {
-    // Placeholder - to be implemented
+  const handleAddDocument = async (pegawaiId: string, newFiles: File[]) => {
+    for (const file of newFiles) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('jenisDokumen', (file.type?.split('/')[1] || 'FILE').toUpperCase())
+      formData.append('namaFile', file.name)
+
+      const response = await fetch(`/api/pegawai/${pegawaiId}/documents`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Gagal upload dokumen')
+      }
+    }
+
+    setReloadKey((v) => v + 1)
   }
 
     const handleDeleteClick = (pegawaiId: string, pegawaiNama: string) => {
@@ -222,6 +347,8 @@ export default function PegawaiPage() {
           onDepartemenChange={setDepartemen}
           status={status}
           onStatusChange={setStatus}
+          departemenOptions={departemenOptions}
+          statusOptions={statusOptions}
           onReset={resetFilters}
         />
 

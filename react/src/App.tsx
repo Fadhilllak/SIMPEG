@@ -6,6 +6,7 @@ import LoginPage from "@/app/form login/login"; // Import halaman Login
 import KarirPage from "@/components/pegawai/page";
 import { Toaster } from "@/components/ui/toaster";
 import PegawaiList from "@/components/pegawai/PegawaiList";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 
 function App() {
   return (
@@ -15,19 +16,19 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
 
         {/* Halaman Dashboard */}
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         
         {/* Halaman Pegawai */}
-        <Route path="/pegawai" element={<PegawaiPage />} />
+        <Route path="/pegawai" element={<ProtectedRoute><PegawaiPage /></ProtectedRoute>} />
 
         {/* Halaman Pegawai (API demo) */}
-        <Route path="/pegawai-api" element={<PegawaiList />} />
+        <Route path="/pegawai-api" element={<ProtectedRoute><PegawaiList /></ProtectedRoute>} />
 
         {/* Halaman Karir */}
-        <Route path="/karir" element={<KarirPage />} />
+        <Route path="/karir" element={<ProtectedRoute><KarirPage /></ProtectedRoute>} />
 
         {/* Halaman Pengaturan */}
-        <Route path="/pengaturan" element={<PengaturanPage />} />
+        <Route path="/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
       </Routes>
       <Toaster />
     </Router>

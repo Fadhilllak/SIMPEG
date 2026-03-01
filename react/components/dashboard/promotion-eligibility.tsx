@@ -25,8 +25,19 @@ const batasPangkatPendidikan: Record<string, string> = {
 }
 
 export function KelayakanKenaikanPangkat({ daftarPegawai, lihatDetail }: PropsKelayakanKenaikanPangkat) {
+  const statusAktif = (status?: string) => {
+    const nilai = (status ?? '').toString().trim().toLowerCase()
+    if (!nilai) return true
+
+    return !['cuti', 'pensiun', 'nonaktif', 'resign'].includes(nilai)
+  }
+
   const hitungMasaKerja = (tanggalMasuk: string) => {
+    if (!tanggalMasuk) return { tahun: 0, bulan: 0 }
+
     const mulai = new Date(tanggalMasuk)
+    if (Number.isNaN(mulai.getTime())) return { tahun: 0, bulan: 0 }
+
     const sekarang = new Date()
     
     let tahun = sekarang.getFullYear() - mulai.getFullYear()
@@ -114,7 +125,7 @@ export function KelayakanKenaikanPangkat({ daftarPegawai, lihatDetail }: PropsKe
       }
     })
     // Syarat: Aktif, dan (sudah mentok ATAU sudah layak naik pangkat)
-    .filter((p) => p.status === "Aktif" && (p.isMentok || p.layakNaikPangkat))
+    .filter((p) => statusAktif(p.status) && (p.isMentok || p.layakNaikPangkat))
     .sort((a, b) => {
       // Prioritaskan yang layak, lalu yang mentok. Kemudian sort by masa kerja.
       if (a.layakNaikPangkat && !b.layakNaikPangkat) return -1;
@@ -211,8 +222,19 @@ export function KelayakanKenaikanPangkat({ daftarPegawai, lihatDetail }: PropsKe
 }
 
 export function SatyalancanaKaryaSatya({ daftarPegawai, lihatDetail }: PropsKelayakanKenaikanPangkat) {
+  const statusAktif = (status?: string) => {
+    const nilai = (status ?? '').toString().trim().toLowerCase()
+    if (!nilai) return true
+
+    return !['cuti', 'pensiun', 'nonaktif', 'resign'].includes(nilai)
+  }
+
   const hitungMasaKerja = (tanggalMasuk: string) => {
+    if (!tanggalMasuk) return { tahun: 0, bulan: 0 }
+
     const mulai = new Date(tanggalMasuk)
+    if (Number.isNaN(mulai.getTime())) return { tahun: 0, bulan: 0 }
+
     const sekarang = new Date()
     
     let tahun = sekarang.getFullYear() - mulai.getFullYear()
@@ -243,7 +265,7 @@ export function SatyalancanaKaryaSatya({ daftarPegawai, lihatDetail }: PropsKela
       }
     })
     // Syarat: Mencapai 10, 20, atau 30 tahun
-    .filter((p) => p.kategoriSatya !== null && p.status === "Aktif")
+    .filter((p) => p.kategoriSatya !== null && statusAktif(p.status))
     .sort((a, b) => b.masaKerjaTahun - a.masaKerjaTahun)
 
   return (

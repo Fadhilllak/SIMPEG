@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label"
 import {
   File,
   FileImage,
-  X,
   CheckCircle2,
   AlertCircle,
   Upload,
@@ -21,15 +20,15 @@ import {
   Trash2,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import type { Pegawai, Dokumen } from "@/lib/types"
+import type { Pegawai } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface EditDocumentModalProps {
   pegawai: Pegawai | null
   isOpen: boolean
   onClose: () => void
-  onEdit: (pegawaiId: string, dokumenId: string, namaFile: string) => void
-  onAdd: (pegawaiId: string, newDocs: Dokumen[]) => void
+  onEdit: (pegawaiId: string, dokumenId: string, namaFile: string) => Promise<void> | void
+  onAdd: (pegawaiId: string, newFiles: File[]) => Promise<void> | void
 }
 
 type EditStatus = "idle" | "editing" | "success" | "error"
@@ -58,22 +57,28 @@ export function EditDocumentModal({
 
     setEditStatus("editing")
 
-    // Simulate edit
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      await onEdit(pegawai.nipPegawai, selectedDocId, namaFile)
+      setEditStatus("success")
+      toast({
+        title: "Dokumen berhasil diubah",
+        description: `Nama dokumen telah diperbarui untuk ${pegawai.nama}.`,
+      })
 
-    onEdit(pegawai.nipPegawai, selectedDocId, namaFile)
-    setEditStatus("success")
-    toast({
-      title: "Dokumen berhasil diubah",
-      description: `Nama dokumen telah diperbarui untuk ${pegawai.nama}.`,
-    })
-
-    setTimeout(() => {
-      setSelectedDocId(null)
-      setNamaFile("")
-      setEditStatus("idle")
-      onClose()
-    }, 1000)
+      setTimeout(() => {
+        setSelectedDocId(null)
+        setNamaFile("")
+        setEditStatus("idle")
+        onClose()
+      }, 900)
+    } catch {
+      setEditStatus("error")
+      toast({
+        title: "Gagal mengubah dokumen",
+        description: "Silakan coba kembali.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleFileAdd = (e: ChangeEvent<HTMLInputElement>) => {
@@ -91,32 +96,28 @@ export function EditDocumentModal({
 
     setEditStatus("editing")
 
-    // Simulate upload
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      await onAdd(pegawai.nipPegawai, newFiles)
+      setNewFiles([])
+      setEditStatus("success")
 
-    const newDocs: Dokumen[] = newFiles.map((file) => ({
-      id: Date.now().toString() + Math.random(),
-      nama: file.name,
-      tipe: file.type.split("/")[1]?.toUpperCase() || "FILE",
-      ukuran: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-      tanggalUpload: new Date().toISOString().split("T")[0],
-    }))
+      toast({
+        title: "Dokumen berhasil ditambahkan",
+        description: `${pegawai.nama}: ${newFiles.length} file diupload.`,
+      })
 
-    onAdd(pegawai.nipPegawai, newDocs)
-    setNewFiles([])
-    setEditStatus("success")
-
-    setTimeout(() => {
-      setEditStatus("idle")
-    }, 1500)
-  }
-
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split(".").pop()?.toLowerCase()
-    if (["jpg", "jpeg", "png", "gif"].includes(ext || "")) {
-      return FileImage
+      setTimeout(() => {
+        setEditStatus("idle")
+        onClose()
+      }, 1000)
+    } catch {
+      setEditStatus("error")
+      toast({
+        title: "Upload dokumen gagal",
+        description: "Silakan coba kembali.",
+        variant: "destructive",
+      })
     }
-    return File
   }
 
   if (!pegawai) return null
@@ -186,15 +187,17 @@ export function EditDocumentModal({
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {pegawai.efiles.map((doc: any) => {
-                  const isSelected = selectedDocId === doc.id
-                  const FileIcon =
-                    ["jpg", "jpeg", "png", "gif"].includes(
-                      doc.tipe.toLowerCase()
-                    ) ? FileImage : File
+                  const docId = String(doc.idFile ?? doc.id)
+                  const docName = doc.namaFile ?? doc.nama ?? "Dokumen"
+                  const docType = doc.jenisDokumen ?? doc.tipe ?? "FILE"
+                  const docDate = doc.waktuUpload ?? doc.tanggalUpload ?? "-"
+                  const isSelected = selectedDocId === docId
+                  const FileIcon = ["jpg", "jpeg", "png", "gif"].includes((docType || "").toLowerCase()) ? FileImage : File
+
                   return (
                     <div
-                      key={doc.id}
-                      onClick={() => handleSelectDocument(doc.id, doc.nama)}
+                      key={docId}
+                      onClick={() => handleSelectDocument(docId, docName)}
                       className={cn(
                         "cursor-pointer rounded-lg border p-3 transition-colors",
                         isSelected
@@ -214,12 +217,11 @@ export function EditDocumentModal({
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {doc.nama}
+                            {docName}
                           </p>
                           <div className="flex gap-4 text-xs text-muted-foreground">
-                            <span className="hidden sm:inline">{doc.tipe}</span>
-                            <span className="hidden sm:inline">{doc.ukuran}</span>
-                            <span className="truncate">{doc.tanggalUpload}</span>
+                            <span className="hidden sm:inline">{docType}</span>
+                            <span className="truncate">{docDate}</span>
                           </div>
                         </div>
                         {isSelected && (
