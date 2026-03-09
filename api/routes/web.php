@@ -19,7 +19,10 @@ Route::prefix('api')->withoutMiddleware([ValidateCsrfToken::class])->group(funct
         Route::get('pegawai', [PegawaiController::class, 'index']);
         Route::get('pegawai/{id}', [PegawaiController::class, 'show']);
         Route::get('karir/naik-pangkat', [CareerController::class, 'promotionEligibility']);
+        Route::get('karir/naik-pangkat/export', [CareerController::class, 'exportPromotionCsv']);
         Route::get('karir/satyalancana', [CareerController::class, 'satyalancana']);
+        Route::get('karir/satyalancana/export', [CareerController::class, 'exportSatyalancanaCsv']);
+        Route::get('karir/summary', [CareerController::class, 'summary']);
         Route::post('pegawai/{id}', [PegawaiController::class, 'update']);
         Route::put('pegawai/{id}', [PegawaiController::class, 'update']);
         Route::post('pegawai/{id}/documents', [PegawaiController::class, 'uploadDocument']);
